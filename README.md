@@ -2,7 +2,7 @@
 
 A data platform that collects real US tech job postings every day, cleans them, and detects the details job seekers actually filter on but most job sites handle badly: **visa sponsorship**, **contract type (C2C / W2 / 1099)**, **experience level**, **years of experience**, **security clearance**, and **salary**.
 
-> **Status:** Phase 1 (data pipeline) and Phase 1b (daily scheduling with Apache Airflow) complete. Next: H-1B sponsorship history, a FastAPI backend, and Claude-powered features (resume matching and an AI job-search agent).
+> **Status:** Phase 1 (data pipeline), Phase 1b (daily scheduling with Apache Airflow) and Phase 1c (H-1B sponsorship history) complete. Next: a FastAPI backend and Claude-powered features (resume matching and an AI job-search agent).
 
 ---
 
@@ -22,7 +22,9 @@ A data platform that collects real US tech job postings every day, cleans them, 
 | Security clearance | required / not mentioned |
 | Salary | min / max, currency, period (year, month, hour) and a yearly equivalent |
 | Skills | 84 skills in categories (languages, cloud, data engineering, AI/ML...) |
+| Role family | data_engineer, ml_engineer, data_scientist, data_analyst, software_engineer, other |
 
+- **Adds H-1B history** from US Department of Labor data: for each job, how many H-1B applications the company filed for that role family last year and at what salary, even when the posting says nothing about sponsorship.
 - **Stores** everything in PostgreSQL with constraints that reject bad data, and provides a default search that keeps jobs with unstated details instead of hiding them.
 
 ## Architecture
@@ -45,6 +47,29 @@ flowchart LR
 | Orchestration | [`pipeline/run_pipeline.py`](pipeline/run_pipeline.py) | Logs every run (status, counts, errors) to the `pipeline_runs` table. |
 | Quality checks | [`pipeline/quality.py`](pipeline/quality.py) | Fails the run on 0 jobs loaded, duplicates, missing fields, >25% of companies failing, a drop below 50% of the last run, or >5% of jobs with no country. |
 | Scheduling | [`airflow/dags/job_market_pipeline.py`](airflow/dags/job_market_pipeline.py) | Apache Airflow 3.3 DAG, daily at 13:00 UTC, 2 retries per task. |
+
+### H-1B sponsorship history
+
+About 91% of postings say nothing about visa sponsorship. To fill that gap, [`pipeline/h1b.py`](pipeline/h1b.py) loads the US Department of Labor's **LCA disclosure file**. An LCA (Labor Condition Application) is the first step an employer files before sponsoring an H-1B worker, so it shows intent to sponsor, not a final visa approval.
+
+- Streams the Excel file row by row (230,263 rows in about 2 minutes), keeps **certified H-1B** applications, converts wages to yearly, and stores a summary per **fiscal year × employer × role family**: filings, median and quartile wages, top states and titles.
+- Applies the **same role-family rule** to DOL job titles and to job postings, so a "Data Engineer" posting is compared with the company's data engineer filings.
+- **Matches DOL employer names to our companies**: names are cleaned ("Stripe, Inc." → `STRIPE`; "Formagrid Inc. d/b/a Airtable" → `FORMAGRID`), and legal names that differ from the brand are listed in [`h1b_aliases.yaml`](pipeline/config/h1b_aliases.yaml) (Instacart = Maplebear, Airtable = Formagrid). A `--report` lists similar unmatched names so misses are caught, and every decision is noted in that file.
+
+| View | Shows |
+|---|---|
+| `company_h1b_summary` | Filings and typical wage per company, fiscal year and role family |
+| `job_h1b_history` | For each job: the company's filings for that role family and in total, for the latest year |
+
+```sql
+SELECT j.title, h.h1b_role_filings, h.h1b_role_wage_typical
+FROM jobs_matching() j JOIN job_h1b_history h ON h.job_id = j.id
+WHERE j.role_family = 'data_engineer';
+```
+
+**FY 2026 results (Oct 2025 – Jun 2026):** 221,299 certified H-1B applications from about 40,000 employers. **36 of our 38 companies** filed; the most active were Databricks (272), DoorDash (250), Zoox (210) and Stripe (167). In the default search, the company filed H-1Bs for the same role for **1,260 of 1,291** software engineer jobs and **218 of 235** AI/ML jobs.
+
+DOL updates the file each quarter and blocks automated downloads, so this step runs by hand rather than in the daily DAG.
 
 ### Daily schedule (Apache Airflow)
 
@@ -72,10 +97,11 @@ Defined in [`database/schema.sql`](database/schema.sql):
 | Table | Holds |
 |---|---|
 | `companies` | One row per company |
-| `jobs` | One row per posting: 29 columns including every filter above |
+| `jobs` | One row per posting: 30 columns including every filter above |
 | `skills` | Skill names and categories |
 | `job_skills` | Which job needs which skills (many-to-many) |
 | `pipeline_runs` | History log of each pipeline run |
+| `h1b_filings` | H-1B application summaries per fiscal year, employer and role family |
 
 Data quality is enforced in the database itself: unique jobs, valid foreign keys, allowed values only (e.g. `sponsorship IN ('yes','no','unknown')`), and `salary_min <= salary_max`.
 
@@ -147,6 +173,19 @@ On an existing database created before Airflow was added, create Airflow's datab
 docker exec jobs-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE DATABASE airflow"'
 ```
 
+### Load H-1B history (quarterly, by hand)
+
+1. On [DOL's performance data page](https://www.dol.gov/agencies/eta/foreign-labor/performance), under **LCA Programs**, download the latest **LCA Disclosure Data** `.xlsx` file into `data/h1b/`.
+2. Run:
+
+```bash
+python -m pipeline.h1b data/h1b/LCA_Disclosure_Data_FY2026_Q3.xlsx --check-columns   # check first
+python -m pipeline.h1b data/h1b/LCA_Disclosure_Data_FY2026_Q3.xlsx                   # load (about 2 minutes)
+python -m pipeline.h1b --report                                                      # review company matching
+```
+
+Loading a fiscal year again replaces that year's rows, so re-running is safe.
+
 To add a company, add a line to [`pipeline/config/companies.yaml`](pipeline/config/companies.yaml). To add a skill, edit [`pipeline/config/skills.yaml`](pipeline/config/skills.yaml).
 
 ## Tests
@@ -155,13 +194,13 @@ To add a company, add a line to [`pipeline/config/companies.yaml`](pipeline/conf
 pytest
 ```
 
-137 tests: rule-by-rule unit tests, transform tests on sample Greenhouse and Lever jobs (no internet needed), data quality and cleanup tests, and database tests for the search filter and constraints. Database tests run inside a rolled-back transaction, and are skipped automatically if Docker isn't running.
+196 tests: rule-by-rule unit tests, transform tests on sample Greenhouse and Lever jobs (no internet needed), data quality and cleanup tests, H-1B tests (name cleaning, wages, and a small generated Excel file), and database tests for the search filter, constraints and H-1B views. Database tests run inside a rolled-back transaction, and are skipped automatically if Docker isn't running.
 
 ## Roadmap
 
 - [x] **Phase 1:** ETL pipeline, database, filter detection, tests
 - [x] **Phase 1b:** Daily scheduling with Apache Airflow, with data quality checks
-- [ ] **Phase 1c:** H-1B sponsorship history from public US Department of Labor data, matched to companies
+- [x] **Phase 1c:** H-1B sponsorship history from public US Department of Labor data, matched to companies
 - [ ] **Phase 2:** FastAPI backend (job search, trending skills)
 - [ ] **Phase 3:** Claude features: resume matcher, AI job-search agent, and LLM filter detection compared against the rules
 - [ ] **Phase 4:** Web frontend, CI with GitHub Actions, deployment
@@ -173,3 +212,5 @@ Python 3.12 · PostgreSQL 16 · Apache Airflow 3.3 · Docker · `requests` · `p
 ## Data sources
 
 Job data comes from the public [Greenhouse Job Board API](https://docs.greenhouse.io/job-board.html) and [Lever Postings API](https://github.com/lever/postings-api), which companies use to publish their openings. The pipeline makes at most one request per second, and each job links back to the original posting.
+
+H-1B history comes from the US Department of Labor's [public LCA disclosure data](https://www.dol.gov/agencies/eta/foreign-labor/performance). The downloaded files are not stored in this repository.
