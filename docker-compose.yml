@@ -1,0 +1,22 @@
+# Starts the project's PostgreSQL database.
+# Run:   docker compose up -d     (start in the background)
+# Stop:  docker compose down      (stop; your data is kept)
+
+services:
+  db:
+    image: postgres:16
+    container_name: jobs-postgres
+    env_file: .env                  # reads POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+    ports:
+      - "127.0.0.1:5432:5432"       # reachable only from this computer
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # data survives container restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

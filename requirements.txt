@@ -1,0 +1,12 @@
+# HTTP requests to job APIs (Extract)
+requests==2.32.3
+# PostgreSQL driver (Load)
+psycopg[binary]==3.2.3
+# Reads settings from the .env file
+python-dotenv==1.0.1
+# Reads the config files (companies.yaml, skills.yaml)
+PyYAML==6.0.2
+# Turns HTML job descriptions into plain text
+beautifulsoup4==4.12.3
+# Automated tests
+pytest==8.3.3
