@@ -1,0 +1,28 @@
+# How our companies appear in the US Department of Labor's H-1B (LCA) files.
+#
+# Each company is matched automatically by its cleaned name (e.g. "Stripe" matches
+# "STRIPE, INC."). List extra names here when the company files under a different
+# legal name. Every entry was checked against the data:
+#     python -m pipeline.h1b --report
+
+aliases:
+  Instacart: [MAPLEBEAR]                     # legal name: Maplebear Inc.
+  Airtable:  [FORMAGRID]                     # legal name: Formagrid Inc.
+  Ro:        [ROMAN HEALTH VENTURES]         # legal name: Roman Health Ventures Inc.
+  Elastic:   [ELASTICSEARCH]                 # legal name: Elasticsearch, Inc.
+  SoFi:      [SOCIAL FINANCE, SOFI TECHNOLOGIES, SOFI BANK]
+  Palantir:  [PALANTIR TECHNOLOGIES]
+  Robinhood: [ROBINHOOD MARKETS]
+  Chime:     [CHIME FINANCIAL]
+  Spotify:   [SPOTIFY USA]
+  Coinbase:  [COINBASE GLOBAL]
+  Scale AI:  [SCALE AI]
+  Stripe:    [STRIPE PAYMENTS]               # Stripe Payments Company
+  DoorDash:  [DOORDASH ESSENTIALS]           # DoorDash's own subsidiary
+
+# Checked and deliberately NOT matched (FY 2026 data):
+#   'Stripe MALPB'                 - could not confirm it is Stripe
+#   'Affirm Background Screening'  - a different company
+#   'Asana Partners Payroll'       - a different company
+#   'Meso Scale Diagnostics'       - a different company
+# GitLab and Ro have no FY 2026 filings under any similar name.

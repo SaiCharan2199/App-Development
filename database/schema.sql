@@ -91,6 +91,40 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
     error_message   TEXT
 );
 
+-- Phase 1c: the job's role family. Added with ALTER so existing databases are
+-- upgraded in place without losing data (safe to run more than once).
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS role_family TEXT NOT NULL DEFAULT 'other';
+DO $$ BEGIN
+    ALTER TABLE jobs ADD CONSTRAINT ck_jobs_role_family CHECK (role_family IN
+        ('data_engineer', 'ml_engineer', 'data_scientist', 'data_analyst', 'software_engineer', 'other'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Phase 1c: H-1B history from the US Department of Labor's LCA disclosure files.
+-- One row per fiscal year x employer x role family (summarised from the raw file).
+-- An LCA (Labor Condition Application) is the first step an employer files before
+-- sponsoring an H-1B worker: it shows intent to sponsor, not a final visa approval.
+CREATE TABLE IF NOT EXISTS h1b_filings (
+    id             BIGSERIAL PRIMARY KEY,
+    fiscal_year    SMALLINT NOT NULL,
+    employer_key   TEXT     NOT NULL,          -- cleaned name used for matching, e.g. 'STRIPE'
+    employer_name  TEXT     NOT NULL,          -- most common spelling in the file, e.g. 'STRIPE, INC.'
+    company_id     INTEGER  REFERENCES companies(id),   -- set when it matches one of our companies
+    role_family    TEXT     NOT NULL CHECK (role_family IN
+                       ('data_engineer', 'ml_engineer', 'data_scientist', 'data_analyst', 'software_engineer', 'other')),
+    filings        INTEGER  NOT NULL CHECK (filings > 0),     -- certified H-1B LCAs
+    positions      INTEGER  NOT NULL,                         -- workers covered by those LCAs
+    wage_median    NUMERIC(12, 2),                            -- offered yearly wage
+    wage_p25       NUMERIC(12, 2),
+    wage_p75       NUMERIC(12, 2),
+    top_states     TEXT,                                      -- e.g. 'CA, WA, NY'
+    top_titles     TEXT,                                      -- most common job titles
+    source_file    TEXT     NOT NULL,
+    loaded_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_h1b UNIQUE (fiscal_year, employer_key, role_family)
+);
+CREATE INDEX IF NOT EXISTS idx_h1b_company ON h1b_filings (company_id, fiscal_year, role_family);
+
 -- Indexes: make common searches fast.
 CREATE INDEX IF NOT EXISTS idx_jobs_posted_at   ON jobs (posted_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id  ON jobs (company_id);
@@ -135,3 +169,50 @@ AS $$
       AND (years_experience_min IS NULL                    -- experience not stated: keep
            OR years_experience_min <= max_years_required);
 $$;
+
+-- =============================================================
+-- Phase 1c: H-1B history per company and per job.
+--
+--   SELECT * FROM company_h1b_summary WHERE role_family = 'data_engineer' ORDER BY filings DESC;
+--   SELECT j.title, h.* FROM jobs_matching() j JOIN job_h1b_history h ON h.job_id = j.id;
+-- =============================================================
+
+-- One row per company x fiscal year x role family. A company can file under more
+-- than one legal name, so filings are added up and the wage is a filings-weighted
+-- average of each name's median ("typical wage").
+CREATE OR REPLACE VIEW company_h1b_summary AS
+SELECT
+    company_id,
+    fiscal_year,
+    role_family,
+    sum(filings)::INTEGER                                            AS filings,
+    sum(positions)::INTEGER                                          AS positions,
+    round(sum(wage_median * filings) / nullif(sum(filings) FILTER (WHERE wage_median IS NOT NULL), 0), 0)
+                                                                     AS wage_typical,
+    string_agg(DISTINCT employer_name, '; ')                         AS dol_employer_names
+FROM h1b_filings
+WHERE company_id IS NOT NULL
+GROUP BY company_id, fiscal_year, role_family;
+
+-- For each job: its company's H-1B filings in the latest loaded fiscal year,
+-- for the same role family and in total. 0 means the company filed none
+-- (only meaningful once H-1B data has been loaded).
+CREATE OR REPLACE VIEW job_h1b_history AS
+WITH latest AS (SELECT max(fiscal_year) AS fy FROM h1b_filings)
+SELECT
+    j.id                                         AS job_id,
+    latest.fy                                    AS h1b_fiscal_year,
+    coalesce(same_role.filings, 0)               AS h1b_role_filings,
+    same_role.wage_typical                       AS h1b_role_wage_typical,
+    coalesce(company_total.filings, 0)           AS h1b_company_filings
+FROM jobs j
+CROSS JOIN latest
+LEFT JOIN company_h1b_summary same_role
+       ON same_role.company_id = j.company_id
+      AND same_role.fiscal_year = latest.fy
+      AND same_role.role_family = j.role_family
+LEFT JOIN (SELECT company_id, fiscal_year, sum(filings)::INTEGER AS filings
+           FROM company_h1b_summary GROUP BY 1, 2) company_total
+       ON company_total.company_id = j.company_id
+      AND company_total.fiscal_year = latest.fy
+WHERE latest.fy IS NOT NULL;

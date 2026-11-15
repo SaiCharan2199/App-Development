@@ -8,5 +8,7 @@ python-dotenv==1.0.1
 PyYAML==6.0.2
 # Turns HTML job descriptions into plain text
 beautifulsoup4==4.12.3
+# Reads the H-1B Excel files from the US Department of Labor
+openpyxl==3.1.5
 # Automated tests
 pytest==8.3.3

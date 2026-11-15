@@ -110,6 +110,41 @@ def test_detect_experience_level(title, years, expected):
     assert rules.detect_experience_level(title, years) == expected
 
 
+# ---------------- Role family ----------------
+
+@pytest.mark.parametrize("title, expected", [
+    ("Senior Data Engineer", "data_engineer"),
+    ("Analytics Engineer", "data_engineer"),
+    ("Data Platform Engineer", "data_engineer"),
+    ("Sr. Data Eng", "data_engineer"),
+    ("Data Engineering Manager", "data_engineer"),
+    ("Machine Learning Engineer", "ml_engineer"),
+    ("Senior ML Engineer, Ranking", "ml_engineer"),
+    ("Research Engineer, Interpretability", "ml_engineer"),
+    ("Applied Scientist", "ml_engineer"),
+    ("AI Engineer - Forward Deployed", "ml_engineer"),
+    ("Data Scientist", "data_scientist"),
+    ("Data Scientist, Machine Learning", "data_scientist"),
+    ("Data Science Manager", "data_scientist"),
+    ("Product Analyst", "data_analyst"),
+    ("Business Intelligence Analyst", "data_analyst"),
+    ("Software Engineer II", "software_engineer"),
+    ("Senior Backend Engineer", "software_engineer"),
+    ("Full Stack Developer", "software_engineer"),
+    ("Site Reliability Engineer", "software_engineer"),
+    ("Member of Technical Staff", "software_engineer"),
+    ("Engineering Manager, Platform", "software_engineer"),
+    ("SWE", "software_engineer"),
+    ("Recruiter, Applied AI", "other"),                 # was wrongly AI/ML in the quick report
+    ("Partner Account Manager, AI-Native Partners", "other"),
+    ("Sales Engineer", "other"),
+    ("Solutions Engineer", "other"),
+    ("Account Executive", "other"),
+])
+def test_detect_role_family(title, expected):
+    assert rules.detect_role_family(title) == expected
+
+
 # ---------------- Sponsorship ----------------
 
 @pytest.mark.parametrize("text, expected", [

@@ -10,6 +10,9 @@ __pycache__/
 # --- Pipeline data (re-created by running the pipeline) ---
 data/raw/*
 !data/raw/.gitkeep
+# Downloaded H-1B files from the US Department of Labor (large; anyone can download them)
+data/h1b/*
+!data/h1b/.gitkeep
 
 # --- Editors and OS ---
 .vscode/

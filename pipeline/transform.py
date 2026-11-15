@@ -148,6 +148,7 @@ def build_record(source: str, company: str, f: dict, skill_patterns) -> dict:
         "company": company,
         "title": title,
         "title_normalized": rules.normalize_title(title),
+        "role_family": rules.detect_role_family(title),
         "location": f["location"] or None,
         "country": country,
         "is_remote": is_remote,
