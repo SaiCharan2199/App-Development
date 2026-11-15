@@ -2,7 +2,7 @@
 
 A data platform that collects real US tech job postings every day, cleans them, and detects the details job seekers actually filter on but most job sites handle badly: **visa sponsorship**, **contract type (C2C / W2 / 1099)**, **experience level**, **years of experience**, **security clearance**, and **salary**.
 
-> **Status:** Phase 1 (data pipeline) complete. Next: daily scheduling, H-1B sponsorship history, a FastAPI backend, and Claude-powered features (resume matching and an AI job-search agent).
+> **Status:** Phase 1 (data pipeline) and Phase 1b (daily scheduling with Apache Airflow) complete. Next: H-1B sponsorship history, a FastAPI backend, and Claude-powered features (resume matching and an AI job-search agent).
 
 ---
 
@@ -43,6 +43,27 @@ flowchart LR
 | Transform | [`pipeline/transform.py`](pipeline/transform.py), [`pipeline/rules.py`](pipeline/rules.py) | Each rule is a small pure function, unit-tested on its own. |
 | Load | [`pipeline/load.py`](pipeline/load.py) | Upserts on `(source, source_job_id)`, so re-running updates jobs instead of duplicating them. One transaction per run. |
 | Orchestration | [`pipeline/run_pipeline.py`](pipeline/run_pipeline.py) | Logs every run (status, counts, errors) to the `pipeline_runs` table. |
+| Quality checks | [`pipeline/quality.py`](pipeline/quality.py) | Fails the run on 0 jobs loaded, duplicates, missing fields, >25% of companies failing, a drop below 50% of the last run, or >5% of jobs with no country. |
+| Scheduling | [`airflow/dags/job_market_pipeline.py`](airflow/dags/job_market_pipeline.py) | Apache Airflow 3.3 DAG, daily at 13:00 UTC, 2 retries per task. |
+
+### Daily schedule (Apache Airflow)
+
+```mermaid
+flowchart LR
+    A[extract_jobs] --> B[transform_and_load] --> C[check_data_quality]
+    C --> D[report_summary]
+    C --> E[cleanup_old_raw_files]
+```
+
+| Task | What it does |
+|---|---|
+| `extract_jobs` | Downloads all companies and saves raw files. Fails only if no company can be reached. |
+| `transform_and_load` | Re-processes the saved raw files and upserts into PostgreSQL, so a retry never re-downloads. |
+| `check_data_quality` | Runs the quality checks; no automatic retry, because a failure needs a person to look. |
+| `report_summary` | Logs the day's numbers (new jobs, matches for the default search, sponsoring jobs). |
+| `cleanup_old_raw_files` | Keeps only the last 14 days of raw files. |
+
+The setup is deliberately lean for an 8 GB laptop: one Airflow container in `standalone` mode with `LocalExecutor`, its metadata in a separate `airflow` database on the same PostgreSQL server, a 2.5 GB memory cap, and a UI bound to `127.0.0.1` only (so no login). It uses about 1.3 GB of RAM. The same DAG can run on a managed service such as Amazon MWAA or Google Cloud Composer.
 
 ### Database
 
@@ -111,6 +132,21 @@ python -m pipeline.run_pipeline --from-raw 2026-11-14        # re-process saved 
 python -m pipeline.run_pipeline --dry-run                    # no database writes
 ```
 
+### Run it every day with Airflow
+
+```bash
+# add AIRFLOW_FERNET_KEY and AIRFLOW_SECRET_KEY to .env first (see .env.example)
+docker compose --profile airflow up -d --build    # start PostgreSQL + Airflow
+```
+
+Open **http://localhost:8080** to see runs, task logs and the next scheduled time, or click **Trigger** to run now. Stop it with `docker compose --profile airflow down` (data is kept). The daily run only happens while the computer is on and Docker is running.
+
+On an existing database created before Airflow was added, create Airflow's database once:
+
+```bash
+docker exec jobs-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE DATABASE airflow"'
+```
+
 To add a company, add a line to [`pipeline/config/companies.yaml`](pipeline/config/companies.yaml). To add a skill, edit [`pipeline/config/skills.yaml`](pipeline/config/skills.yaml).
 
 ## Tests
@@ -119,12 +155,12 @@ To add a company, add a line to [`pipeline/config/companies.yaml`](pipeline/conf
 pytest
 ```
 
-127 tests: rule-by-rule unit tests, transform tests on sample Greenhouse and Lever jobs (no internet needed), and database tests for the search filter and constraints. Database tests run inside a rolled-back transaction, and are skipped automatically if Docker isn't running.
+137 tests: rule-by-rule unit tests, transform tests on sample Greenhouse and Lever jobs (no internet needed), data quality and cleanup tests, and database tests for the search filter and constraints. Database tests run inside a rolled-back transaction, and are skipped automatically if Docker isn't running.
 
 ## Roadmap
 
 - [x] **Phase 1:** ETL pipeline, database, filter detection, tests
-- [ ] **Phase 1b:** Daily scheduling with Apache Airflow
+- [x] **Phase 1b:** Daily scheduling with Apache Airflow, with data quality checks
 - [ ] **Phase 1c:** H-1B sponsorship history from public US Department of Labor data, matched to companies
 - [ ] **Phase 2:** FastAPI backend (job search, trending skills)
 - [ ] **Phase 3:** Claude features: resume matcher, AI job-search agent, and LLM filter detection compared against the rules
@@ -132,7 +168,7 @@ pytest
 
 ## Tech stack
 
-Python 3.12 · PostgreSQL 16 · Docker · `requests` · `psycopg` · BeautifulSoup · PyYAML · pytest
+Python 3.12 · PostgreSQL 16 · Apache Airflow 3.3 · Docker · `requests` · `psycopg` · BeautifulSoup · PyYAML · pytest
 
 ## Data sources
 

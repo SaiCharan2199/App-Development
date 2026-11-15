@@ -1,6 +1,6 @@
-# Starts the project's PostgreSQL database.
-# Run:   docker compose up -d     (start in the background)
-# Stop:  docker compose down      (stop; your data is kept)
+# Database only:          docker compose up -d
+# Database + Airflow:     docker compose --profile airflow up -d --build
+# Stop everything:        docker compose --profile airflow down      (data is kept)
 
 services:
   db:
@@ -11,6 +11,7 @@ services:
       - "127.0.0.1:5432:5432"       # reachable only from this computer
     volumes:
       - pgdata:/var/lib/postgresql/data   # data survives container restarts
+      - ./database/init:/docker-entrypoint-initdb.d:ro   # runs once, on a brand-new database
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -18,5 +19,45 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Lean Airflow for a laptop: one container (scheduler, web UI, DAG processor and
+  # triggerer together) using LocalExecutor, with its metadata in the same PostgreSQL
+  # server (separate 'airflow' database).
+  airflow:
+    profiles: ["airflow"]           # only starts with --profile airflow
+    build: ./airflow
+    image: job-market-airflow:3.3.2
+    container_name: jobs-airflow
+    command: standalone
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db             # inside Docker the database is called 'db', not localhost
+      PYTHONPATH: /opt/airflow/project
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/airflow
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__API__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
+      # The UI is reachable only from this computer (see ports), so no login is required.
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+      # Keep memory low on an 8 GB laptop.
+      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__API__WORKERS: "1"
+    ports:
+      - "127.0.0.1:8080:8080"       # Airflow UI: http://localhost:8080 (this computer only)
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./pipeline:/opt/airflow/project/pipeline
+      - ./database:/opt/airflow/project/database
+      - ./data:/opt/airflow/project/data
+      - airflow-logs:/opt/airflow/logs
+    mem_limit: 2500m                # protect the laptop if Airflow misbehaves
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  airflow-logs:
