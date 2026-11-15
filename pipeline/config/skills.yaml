@@ -1,0 +1,107 @@
+# Skills to detect in job descriptions.
+#   name:     how the skill is stored and shown
+#   category: group used for analytics (language, cloud, ...)
+#   aliases:  other ways it is written (matched as whole words, any case)
+#   exact_case: true = match aliases only in this exact capitalisation
+#               (for short names that are also normal words)
+
+skills:
+  # ---- Programming languages ----
+  - { name: Python,      category: language, aliases: [python] }
+  - { name: SQL,         category: language, aliases: [sql] }
+  - { name: Java,        category: language, aliases: [java] }
+  - { name: Scala,       category: language, aliases: [scala] }
+  - { name: Go,          category: language, aliases: [golang, Go], exact_case: true }
+  - { name: Rust,        category: language, aliases: [rust] }
+  - { name: C++,         category: language, aliases: [c++, cpp] }
+  - { name: C#,          category: language, aliases: [c#] }
+  - { name: JavaScript,  category: language, aliases: [javascript] }
+  - { name: TypeScript,  category: language, aliases: [typescript] }
+  - { name: Kotlin,      category: language, aliases: [kotlin] }
+  - { name: Ruby,        category: language, aliases: [ruby] }
+  - { name: Bash,        category: language, aliases: [bash, shell scripting] }
+
+  # ---- Databases and warehouses ----
+  - { name: PostgreSQL,  category: database, aliases: [postgresql, postgres] }
+  - { name: MySQL,       category: database, aliases: [mysql] }
+  - { name: MongoDB,     category: database, aliases: [mongodb] }
+  - { name: Redis,       category: database, aliases: [redis] }
+  - { name: Cassandra,   category: database, aliases: [cassandra] }
+  - { name: DynamoDB,    category: database, aliases: [dynamodb] }
+  - { name: Elasticsearch, category: database, aliases: [elasticsearch, opensearch] }
+  - { name: Snowflake,   category: warehouse, aliases: [snowflake] }
+  - { name: BigQuery,    category: warehouse, aliases: [bigquery] }
+  - { name: Redshift,    category: warehouse, aliases: [redshift] }
+  - { name: Databricks,  category: warehouse, aliases: [databricks] }
+  - { name: ClickHouse,  category: warehouse, aliases: [clickhouse] }
+
+  # ---- Data engineering ----
+  - { name: Apache Spark, category: data_processing, aliases: [spark, pyspark] }
+  - { name: Apache Kafka, category: streaming, aliases: [kafka] }
+  - { name: Apache Flink, category: streaming, aliases: [flink] }
+  - { name: Apache Airflow, category: orchestration, aliases: [airflow] }
+  - { name: Dagster,     category: orchestration, aliases: [dagster] }
+  - { name: Prefect,     category: orchestration, aliases: [prefect] }
+  - { name: dbt,         category: transformation, aliases: [dbt] }
+  - { name: Hadoop,      category: data_processing, aliases: [hadoop, hdfs, hive] }
+  - { name: ETL,         category: concept, aliases: [etl, elt] }
+  - { name: Data Modeling, category: concept, aliases: [data modeling, data modelling, dimensional modeling] }
+  - { name: Data Warehousing, category: concept, aliases: [data warehouse, data warehousing] }
+  - { name: Data Lake,   category: concept, aliases: [data lake, lakehouse] }
+  - { name: Delta Lake,  category: data_processing, aliases: [delta lake] }
+  - { name: Apache Iceberg, category: data_processing, aliases: [iceberg] }
+  - { name: Fivetran,    category: integration, aliases: [fivetran] }
+
+  # ---- Cloud ----
+  - { name: AWS,         category: cloud, aliases: [aws, amazon web services] }
+  - { name: Azure,       category: cloud, aliases: [azure] }
+  - { name: GCP,         category: cloud, aliases: [gcp, google cloud] }
+  - { name: AWS S3,      category: cloud, aliases: [s3] }
+  - { name: AWS Lambda,  category: cloud, aliases: [lambda] }
+  - { name: AWS Glue,    category: cloud, aliases: [aws glue] }
+
+  # ---- DevOps and infrastructure ----
+  - { name: Docker,      category: devops, aliases: [docker] }
+  - { name: Kubernetes,  category: devops, aliases: [kubernetes, k8s] }
+  - { name: Terraform,   category: devops, aliases: [terraform] }
+  - { name: CI/CD,       category: devops, aliases: [ci/cd, continuous integration] }
+  - { name: Git,         category: devops, aliases: [git] }
+  - { name: Linux,       category: devops, aliases: [linux] }
+  - { name: GitHub Actions, category: devops, aliases: [github actions] }
+  - { name: Jenkins,     category: devops, aliases: [jenkins] }
+
+  # ---- Backend and web ----
+  - { name: REST APIs,   category: backend, aliases: [rest api, rest apis, restful] }
+  - { name: GraphQL,     category: backend, aliases: [graphql] }
+  - { name: Microservices, category: backend, aliases: [microservices, microservice] }
+  - { name: Distributed Systems, category: backend, aliases: [distributed systems] }
+  - { name: FastAPI,     category: backend, aliases: [fastapi] }
+  - { name: Django,      category: backend, aliases: [django] }
+  - { name: Flask,       category: backend, aliases: [flask] }
+  - { name: Node.js,     category: backend, aliases: [node.js, nodejs] }
+  - { name: Spring Boot, category: backend, aliases: [spring boot] }
+  - { name: React,       category: frontend, aliases: [React, React.js, ReactJS], exact_case: true }
+  - { name: gRPC,        category: backend, aliases: [grpc] }
+
+  # ---- AI / ML ----
+  - { name: Machine Learning, category: ai_ml, aliases: [machine learning] }
+  - { name: Deep Learning, category: ai_ml, aliases: [deep learning] }
+  - { name: PyTorch,     category: ai_ml, aliases: [pytorch] }
+  - { name: TensorFlow,  category: ai_ml, aliases: [tensorflow] }
+  - { name: scikit-learn, category: ai_ml, aliases: [scikit-learn, sklearn] }
+  - { name: LLMs,        category: ai_ml, aliases: [llm, llms, large language model, large language models] }
+  - { name: NLP,         category: ai_ml, aliases: [nlp, natural language processing] }
+  - { name: Computer Vision, category: ai_ml, aliases: [computer vision] }
+  - { name: RAG,         category: ai_ml, aliases: [rag, retrieval-augmented generation, retrieval augmented generation] }
+  - { name: MLOps,       category: ai_ml, aliases: [mlops] }
+  - { name: Generative AI, category: ai_ml, aliases: [generative ai, genai] }
+  - { name: Hugging Face, category: ai_ml, aliases: [hugging face, huggingface] }
+  - { name: Pandas,      category: ai_ml, aliases: [pandas] }
+  - { name: NumPy,       category: ai_ml, aliases: [numpy] }
+
+  # ---- Analytics and BI ----
+  - { name: Tableau,     category: analytics, aliases: [tableau] }
+  - { name: Looker,      category: analytics, aliases: [looker] }
+  - { name: Power BI,    category: analytics, aliases: [power bi, powerbi] }
+  - { name: Statistics,  category: analytics, aliases: [statistics, statistical] }
+  - { name: A/B Testing, category: analytics, aliases: [a/b testing, experimentation] }
