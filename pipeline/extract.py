@@ -62,6 +62,23 @@ def extract(only: list[str] | None = None, run_date: date | None = None) -> tupl
     return batches, failed
 
 
+def cleanup_raw(keep_days: int = 14, today: date | None = None, raw_dir: Path = RAW_DIR) -> list[str]:
+    """Delete raw data folders older than keep_days. Returns the folder names removed."""
+    import shutil
+
+    today = today or date.today()
+    removed = []
+    for folder in sorted(raw_dir.iterdir()) if raw_dir.exists() else []:
+        try:
+            folder_date = date.fromisoformat(folder.name)
+        except ValueError:
+            continue                      # not a dated folder (e.g. .gitkeep): leave it alone
+        if folder.is_dir() and (today - folder_date).days > keep_days:
+            shutil.rmtree(folder)
+            removed.append(folder.name)
+    return removed
+
+
 def load_raw(run_date: date) -> list[dict]:
     """Read back raw batches saved on a given date (to re-run Transform)."""
     folder = RAW_DIR / run_date.isoformat()

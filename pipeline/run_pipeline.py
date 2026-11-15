@@ -37,7 +37,8 @@ def _summary(records: list[dict]) -> None:
     print(f"  {'clearance':<18} {sum(bool(r['clearance_required']) for r in records)}")
 
 
-def run(companies: list[str] | None, from_raw: date | None, dry_run: bool) -> None:
+def run(companies: list[str] | None, from_raw: date | None, dry_run: bool) -> dict:
+    """Run the pipeline and return its numbers (used by Airflow and the quality checks)."""
     conn = None if dry_run else get_connection()
     run_id = None
     if conn:
@@ -75,6 +76,15 @@ def run(companies: list[str] | None, from_raw: date | None, dry_run: bool) -> No
               + (" (dry run: nothing saved)" if dry_run else ""))
         for note in notes:
             print(f"  Note: {note}")
+        return {
+            "run_id": run_id,
+            "extracted": extracted,
+            "inserted": counts["inserted"],
+            "updated": counts["updated"],
+            "companies_total": len(batches) + len(failed_companies),
+            "failed_companies": failed_companies,
+            "failed_jobs": failed_jobs,
+        }
     except Exception as exc:
         if conn:
             conn.rollback()
