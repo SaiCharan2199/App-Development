@@ -13,7 +13,7 @@ from pipeline.transform import load_skills
 log = logging.getLogger(__name__)
 
 JOB_COLUMNS = [
-    "source", "source_job_id", "title", "title_normalized", "company_id", "location", "country",
+    "source", "source_job_id", "title", "title_normalized", "role_family", "company_id", "location", "country",
     "is_remote", "remote_worldwide", "employment_type", "contract_types", "contract_evidence",
     "experience_level", "years_experience_min", "sponsorship", "sponsorship_evidence",
     "clearance_required", "extraction_method", "salary_min", "salary_max", "salary_currency",

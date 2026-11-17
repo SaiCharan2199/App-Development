@@ -231,6 +231,43 @@ def detect_experience_level(title: str, years: int | None = None) -> str:
 
 
 # =============================================================
+# Role family (also applied to H-1B job titles, so the two can be matched)
+# =============================================================
+
+ROLE_FAMILIES = ("data_engineer", "ml_engineer", "data_scientist", "data_analyst", "software_engineer", "other")
+
+_ROLE_RULES = [   # order matters: first match wins
+    ("data_engineer", re.compile(
+        r"\b(data|analytics|etl|big data|data platform|data infrastructure|data warehouse|data pipeline)\s+"
+        r"(engineer|engineering|developer|architect)\b", re.I)),
+    ("ml_engineer", re.compile(
+        r"\b(machine learning|ml|ai|deep learning|llm|nlp|computer vision|genai|generative ai|applied ai|mlops)\b"
+        r"[\w\s,/&()-]{0,40}?\b(engineer|engineering|developer|architect|scientist|researcher)\b"
+        r"|\bresearch (engineer|scientist)\b|\bapplied scientist\b|\bmle\b", re.I)),
+    ("data_scientist", re.compile(
+        r"\bdata scien(ce|tist)\b|\bdecision scien(ce|tist)\b|\bquantitative (researcher|analyst)\b", re.I)),
+    ("data_analyst", re.compile(
+        r"\b(data|bi|business intelligence|analytics|product|business|reporting|insights|marketing)\s+analyst\b", re.I)),
+    ("software_engineer", re.compile(
+        r"\b(software|backend|back[- ]end|frontend|front[- ]end|full[- ]?stack|mobile|ios|android|web|platform"
+        r"|infrastructure|systems|site reliability|reliability|devops|cloud|security|firmware|embedded|application"
+        r"|api|distributed systems|qa|test|automation|build|release|production|database|network)\s+"
+        r"(engineer|developer|engineering)\b"
+        r"|\bsre\b|\bswe\b|\bsoftware development engineer\b|\bprogrammer\b|\bmember of (the )?technical staff\b"
+        r"|\bengineering manager\b|^(senior |sr\.? |staff |principal |lead )?(engineer|developer)\b", re.I)),
+]
+
+
+def detect_role_family(title: str) -> str:
+    """Group a job title: data_engineer / ml_engineer / data_scientist / data_analyst / software_engineer / other."""
+    t = normalize_title(title or "")
+    for family, pattern in _ROLE_RULES:
+        if pattern.search(t):
+            return family
+    return "other"
+
+
+# =============================================================
 # Visa sponsorship
 # =============================================================
 
